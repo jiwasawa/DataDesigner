@@ -160,6 +160,39 @@ def test_parse_file_reasoning_response_item_populates_reasoning_content(
     assert "reasoning" in record.source_meta["response_item_types"]
 
 
+def test_parse_file_reasoning_response_item_prefers_raw_content_over_summary(
+    tmp_path: Path, write_jsonl: Callable[[Path, list[dict[str, Any]]], None]
+) -> None:
+    write_jsonl(
+        tmp_path / "rollout-raw.jsonl",
+        [
+            {"type": "session_meta", "payload": {"id": "sess-raw"}},
+            {
+                "type": "response_item",
+                "payload": {
+                    "type": "reasoning",
+                    "summary": [{"type": "summary_text", "text": "Short summary"}],
+                    "content": [{"type": "reasoning_text", "text": "Full raw reasoning"}],
+                    "encrypted_content": None,
+                },
+            },
+            {
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "Answer"}],
+                },
+            },
+        ],
+    )
+    handler = _make_handler()
+    records = handler.parse_file(root_path=tmp_path, relative_path="rollout-raw.jsonl")
+
+    assistant_msg = next(m for m in records[0].messages if m["role"] == "assistant")
+    assert assistant_msg["reasoning_content"] == "Full raw reasoning"
+
+
 def test_parse_file_handles_custom_tool_call_and_apply_patch_call(
     tmp_path: Path, write_jsonl: Callable[[Path, list[dict[str, Any]]], None]
 ) -> None:
